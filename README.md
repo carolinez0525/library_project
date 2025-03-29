@@ -17,11 +17,14 @@ pip install -r requirements.txt
 python manage.py runserver
 ```
 
+## Alternative using Docker
+
 Launch dev image
 ```bash
 bash bin/launch_dev_docker.sh
 ```
-Runserver
+
+Build image
 ```bash
-docker compose up
+bash bin/build_image.sh
 ```
