@@ -16,3 +16,12 @@ pip install -r requirements.txt
 ```bash
 python manage.py runserver
 ```
+
+Launch dev image
+```bash
+bash bin/launch_dev_docker.sh
+```
+Runserver
+```bash
+docker compose up
+```
