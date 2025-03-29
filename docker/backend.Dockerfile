@@ -2,6 +2,8 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+ENV TZ=UTC
+
 # Install required dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -18,7 +20,12 @@ RUN apt-get update && apt-get install -y \
     git \
     wget \
     zip \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+
+# Set timezone environment variable
+ENV TZ=UTC
 
 # Set Python 3.11 as default
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \

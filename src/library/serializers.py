@@ -2,10 +2,21 @@ from rest_framework import serializers
 from .models import User, Reader, Librarian, LibraryCard, Book, Borrow, Reserve, Review
 
 class UserSerializer(serializers.ModelSerializer):
+    # handle password correctly and securely
+    password = serializers.CharField(write_only=True, required=True)
+    role = serializers.ChoiceField(choices=User.ROLE_CHOICES)
+
     class Meta:
         model = User
-        exclude = ['password']
-        read_only_fields = ['user_id']
+        fields = ['id', 'email', 'password', 'role']
+        read_only_fields = ['id']
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        user = User(**validated_data)
+        user.set_password(password)  # 🔐 hashes the password
+        user.save()
+        return user
 
 class ReaderSerializer(serializers.ModelSerializer):
     user = UserSerializer()
