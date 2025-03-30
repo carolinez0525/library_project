@@ -13,6 +13,7 @@ from .serializers import (
     ReserveSerializer, ReviewSerializer
 )
 
+from .permissions import IsLibrarian
 
 # -------------------------------
 # Authentication Views
@@ -81,10 +82,15 @@ class LibraryCardViewSet(viewsets.ModelViewSet):
     serializer_class = LibraryCardSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
+# Update BookViewSet to allow all users to view books and only librarians to modify
 class BookViewSet(viewsets.ModelViewSet):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsLibrarian()]
+        return [permissions.IsAuthenticatedOrReadOnly()]
 
 class BorrowViewSet(viewsets.ModelViewSet):
     queryset = Borrow.objects.all()
