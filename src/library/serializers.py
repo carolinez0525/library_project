@@ -42,13 +42,13 @@ class BookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
         fields = '__all__'
-        read_only_fields = ['book_id']
+        read_only_fields = ['user', 'return_date', 'delay_status']
 
 class BorrowSerializer(serializers.ModelSerializer):
     class Meta:
         model = Borrow
         fields = '__all__'
-        read_only_fields = ['borrow_id', 'delay_status']
+        read_only_fields = ['borrow_id', 'delay_status', 'user', 'return_date']
 
 class ReserveSerializer(serializers.ModelSerializer):
     class Meta:

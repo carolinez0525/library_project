@@ -3,7 +3,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.contrib.auth import authenticate, login, logout
-from rest_framework.permissions import AllowAny
+from rest_framework.decorators import action
+from django.utils import timezone
 # from rest_framework.authtoken.models import Token  # Uncomment if using Token auth
 
 from .models import User, Reader, Librarian, LibraryCard, Book, Borrow, Reserve, Review
@@ -101,6 +102,27 @@ class BorrowViewSet(viewsets.ModelViewSet):
         if self.request.user.role == 'Librarian':
             return Borrow.objects.all()
         return Borrow.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        # Automatically assign the logged-in user
+        serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsLibrarian])
+    def mark_returned(self, request, pk=None):
+        borrow = self.get_object()
+
+        if borrow.return_date:
+            return Response({"message": "Book already marked as returned."}, status=400)
+
+        borrow.return_date = timezone.now().date()
+        borrow.delay_status = borrow.return_date > borrow.due_date
+
+        borrow.book.status = "Available"
+        borrow.book.save()
+        borrow.save()
+
+        return Response({"message": "Book marked as returned."}, status=200)
+
 
 class ReserveViewSet(viewsets.ModelViewSet):
     queryset = Reserve.objects.all()
