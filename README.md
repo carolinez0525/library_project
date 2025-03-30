@@ -28,3 +28,8 @@ Build image
 ```bash
 bash bin/build_image.sh
 ```
+
+Run server
+```bash
+python3 src/manage.py runserver 0.0.0.0:8000
+```
