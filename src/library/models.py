@@ -48,9 +48,14 @@ class Librarian(models.Model):
     position = models.CharField(max_length=50, null=True, blank=True)
     department = models.CharField(max_length=50, null=True, blank=True)
 
+# Auto-generate library card ID
 class LibraryCard(models.Model):
     card_id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"Card {self.card_id} - {self.user.email}"
+
 
 class Book(models.Model):
     STATUS_CHOICES = [

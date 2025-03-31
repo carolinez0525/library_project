@@ -33,10 +33,12 @@ class LibrarianSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class LibraryCardSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    
     class Meta:
         model = LibraryCard
-        fields = '__all__'
-        read_only_fields = ['card_id']
+        fields = ['card_id', 'user', 'user_email']
+        read_only_fields = ['user_email']
 
 class BookSerializer(serializers.ModelSerializer):
     class Meta:

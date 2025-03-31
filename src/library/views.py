@@ -80,10 +80,36 @@ class LibrarianViewSet(viewsets.ModelViewSet):
     serializer_class = LibrarianSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
+# Updated to allow librarians to view all cards & assign new card, readers to view own cards.
 class LibraryCardViewSet(viewsets.ModelViewSet):
     queryset = LibraryCard.objects.all()
     serializer_class = LibraryCardSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_permissions(self):
+        if self.action in ['assign']:
+            return [IsLibrarian()]
+        return [permissions.IsAuthenticatedOrReadOnly()]
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def my_card(self, request):
+        try:
+            card = LibraryCard.objects.get(user=request.user)
+            return Response(LibraryCardSerializer(card).data)
+        except LibraryCard.DoesNotExist:
+            return Response({"message": "You don't have a library card."}, status=404)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsLibrarian])
+    def assign(self, request):
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({"error": "User ID is required."}, status=400)
+
+        if LibraryCard.objects.filter(user_id=user_id).exists():
+            return Response({"error": "User already has a library card."}, status=400)
+
+        card = LibraryCard.objects.create(user_id=user_id)
+        return Response(LibraryCardSerializer(card).data, status=201)
+
 
 # Update BookViewSet to allow all users to view books and only librarians to modify
 class BookViewSet(viewsets.ModelViewSet):
