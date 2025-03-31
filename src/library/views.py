@@ -1,11 +1,13 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.decorators import action, api_view, permission_classes
+
 from django.contrib.auth import authenticate, login, logout
-from rest_framework.decorators import action
 from django.utils import timezone
-# from rest_framework.authtoken.models import Token  # Uncomment if using Token auth
+from django.db.models import Q, Count
+from datetime import timedelta
 
 from .models import User, Reader, Librarian, LibraryCard, Book, Borrow, Reserve, Review
 from .serializers import (
@@ -92,6 +94,7 @@ class BookViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsLibrarian()]
         return [permissions.IsAuthenticatedOrReadOnly()]
+    
 
 class BorrowViewSet(viewsets.ModelViewSet):
     queryset = Borrow.objects.all()
@@ -99,9 +102,28 @@ class BorrowViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
-        if self.request.user.role == 'Librarian':
-            return Borrow.objects.all()
-        return Borrow.objects.filter(user=self.request.user)
+        user = self.request.user
+        qs = Borrow.objects.all() if user.role == 'Librarian' else Borrow.objects.filter(user=user)
+
+        # Optional filters for librarians only
+        if user.role == 'Librarian':
+            overdue = self.request.query_params.get('overdue')
+            due_soon = self.request.query_params.get('due_soon')
+            group_by_user = self.request.query_params.get('group_by_user')
+
+            today = timezone.now().date()
+
+            if overdue == 'true':
+                qs = qs.filter(return_date__isnull=True, due_date__lt=today)
+
+            if due_soon == 'true':
+                soon = today + timedelta(days=3)
+                qs = qs.filter(return_date__isnull=True, due_date__range=[today, soon])
+
+            if group_by_user == 'true':
+                return qs.values('user__email').distinct()
+
+        return qs
     
     def perform_create(self, serializer):
         # Automatically assign the logged-in user
@@ -147,3 +169,28 @@ class ReviewViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(isbn=isbn)
 
         return queryset
+# -------------------------------
+# Custom Librarian API View
+# -------------------------------
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def overdue_users_summary(request):
+    if request.user.role != 'Librarian':
+        return Response({"detail": "Only librarians can access this."}, status=403)
+
+    today = timezone.now().date()
+    overdue_qs = Borrow.objects.filter(
+        return_date__isnull=True,
+        due_date__lt=today
+    ).values('user__email').annotate(overdue_count=Count('borrow_id'))
+
+    results = [
+        {
+            "user_email": entry['user__email'],
+            "overdue_count": entry['overdue_count']
+        }
+        for entry in overdue_qs
+    ]
+
+    return Response(results)

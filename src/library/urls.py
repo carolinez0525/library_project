@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
+from .views import overdue_users_summary
 
 router = DefaultRouter()
 router.register(r'users', views.UserViewSet)
@@ -18,4 +19,6 @@ urlpatterns = [
     path('register/', views.RegisterView.as_view(), name='register'),
     path('login/', views.LoginView.as_view(), name='login'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
+    # Mapping to list of users with overdue books
+    path('overdue-users/', overdue_users_summary, name='overdue-users'),
 ]
