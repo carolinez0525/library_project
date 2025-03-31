@@ -155,6 +155,57 @@ class ReserveViewSet(viewsets.ModelViewSet):
         if self.request.user.role == 'Librarian':
             return Reserve.objects.all()
         return Reserve.objects.filter(user=self.request.user)
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsLibrarian])
+    def fulfill(self, request, pk=None):
+        reservation = self.get_object()
+
+        if reservation.status != 'Pending':
+            return Response({'message': 'Reservation already processed.'}, status=400)
+
+        # Try to find an available book matching the reserved ISBN
+        try:
+            book = Book.objects.filter(isbn=reservation.isbn, status='Available').first()
+            if not book:
+                return Response({'message': 'No available copy for this ISBN.'}, status=400)
+        except Book.DoesNotExist:
+            return Response({'message': 'No such book found.'}, status=404)
+
+        # Update reservation status
+        reservation.status = 'Fulfilled'
+        reservation.save()
+
+        # Update book status
+        book.status = 'Borrowed'
+        book.save()
+
+        # Create borrow record
+        borrow = Borrow.objects.create(
+            user=reservation.user,
+            book=book,
+            borrow_date=timezone.now().date(),
+            due_date=timezone.now().date() + timedelta(days=14)  # default 2-week loan
+        )
+
+        return Response({
+            'message': 'Reservation fulfilled and borrow record created.',
+            'borrow_id': borrow.borrow_id
+        }, status=200)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsLibrarian])
+    def cancel(self, request, pk=None):
+        reservation = self.get_object()
+        if reservation.status != 'Pending':
+            return Response({'message': 'Only pending reservations can be canceled.'}, status=400)
+
+        reservation.status = 'Canceled'
+        reservation.save()
+
+        return Response({'message': 'Reservation canceled.'})
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
 
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()

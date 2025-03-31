@@ -53,7 +53,7 @@ class ReserveSerializer(serializers.ModelSerializer):
     class Meta:
         model = Reserve
         fields = '__all__'
-        read_only_fields = ['reserve_id']
+        read_only_fields = ['reserve_id', 'user']
 
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
