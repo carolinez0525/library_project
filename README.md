@@ -1,4 +1,4 @@
-# backend
+# Backend
 
 ## init environment
 
@@ -11,7 +11,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## run server
+## run server on the local
 
 ```bash
 python manage.py runserver
