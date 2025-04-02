@@ -285,6 +285,43 @@ class ReviewViewSet(viewsets.ModelViewSet):
         serializer = ReviewSerializer(reviews, many=True)
         return Response(serializer.data)
 
+# -------------------------------
+# Reader Profile Management
+# -------------------------------
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_profile(request):
+    # Only for readers
+    if request.user.role != 'Reader':
+        return Response({"detail": "Only readers can access this."}, status=403)
+
+    try:
+        reader = Reader.objects.get(user=request.user)
+        serializer = ReaderSerializer(reader)
+        return Response(serializer.data)
+    except Reader.DoesNotExist:
+        return Response({"detail": "Reader profile not found."}, status=404)
+
+
+@api_view(['PUT', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def update_profile(request):
+    # Only for readers
+    if request.user.role != 'Reader':
+        return Response({"detail": "Only readers can update profile."}, status=403)
+
+    try:
+        reader = Reader.objects.get(user=request.user)
+    except Reader.DoesNotExist:
+        return Response({"detail": "Reader profile not found."}, status=404)
+
+    serializer = ReaderSerializer(reader, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=400)
+
     
     
 # -------------------------------------

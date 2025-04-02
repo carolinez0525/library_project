@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import overdue_users_summary
+from .views import overdue_users_summary, my_profile, update_profile
 
 router = DefaultRouter()
 router.register(r'users', views.UserViewSet)
@@ -21,4 +21,7 @@ urlpatterns = [
     path('logout/', views.LogoutView.as_view(), name='logout'),
     # Mapping to list of users with overdue books
     path('overdue-users/', overdue_users_summary, name='overdue-users'),
+    # Mapping to user profile
+    path('my-profile/', my_profile),
+    path('my-profile/update/', update_profile),
 ]
