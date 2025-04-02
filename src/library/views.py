@@ -26,13 +26,12 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        # Create a new user using submitted data
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            # token, created = Token.objects.get_or_create(user=user)  # Optional
             return Response({
                 "user": UserSerializer(user).data,
-                # "token": token.key  # Optional if using token auth
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -41,28 +40,28 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        # Authenticate user and return user info on success
         email = request.data.get('email')
         password = request.data.get('password')
         user = authenticate(request, username=email, password=password)
 
         if user is not None:
             login(request, user)
-            # token, created = Token.objects.get_or_create(user=user)  # Optional
             return Response({
                 "message": "Login successful",
                 "user": UserSerializer(user).data,
-                # "token": token.key  # Optional
             }, status=status.HTTP_200_OK)
         return Response({"error": "Invalid email or password"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LogoutView(APIView):
     def post(self, request):
+        # Log out current user
         logout(request)
         return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
 
 # -------------------------------
-# API ViewSets
+# User Model ViewSets
 # -------------------------------
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -79,6 +78,10 @@ class LibrarianViewSet(viewsets.ModelViewSet):
     queryset = Librarian.objects.all()
     serializer_class = LibrarianSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+# -------------------------------
+# Library Card Management
+# -------------------------------
 
 # Updated to allow librarians to view all cards & assign new card, readers to view own cards.
 class LibraryCardViewSet(viewsets.ModelViewSet):
@@ -110,6 +113,9 @@ class LibraryCardViewSet(viewsets.ModelViewSet):
         card = LibraryCard.objects.create(user_id=user_id)
         return Response(LibraryCardSerializer(card).data, status=201)
 
+# -------------------------------
+# Book Management
+# -------------------------------
 
 # Update BookViewSet to allow all users to view books and only librarians to modify
 class BookViewSet(viewsets.ModelViewSet):
@@ -121,6 +127,9 @@ class BookViewSet(viewsets.ModelViewSet):
             return [IsLibrarian()]
         return [permissions.IsAuthenticatedOrReadOnly()]
     
+# -------------------------------
+# Borrowing Books
+# -------------------------------
 
 class BorrowViewSet(viewsets.ModelViewSet):
     queryset = Borrow.objects.all()
@@ -128,10 +137,11 @@ class BorrowViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
+        # Librarians see all; readers see their own
         user = self.request.user
         qs = Borrow.objects.all() if user.role == 'Librarian' else Borrow.objects.filter(user=user)
 
-        # Optional filters for librarians only
+        # Filters for librarians
         if user.role == 'Librarian':
             overdue = self.request.query_params.get('overdue')
             due_soon = self.request.query_params.get('due_soon')
@@ -152,11 +162,12 @@ class BorrowViewSet(viewsets.ModelViewSet):
         return qs
     
     def perform_create(self, serializer):
-        # Automatically assign the logged-in user
+        # Automatically assign current user to borrow record
         serializer.save(user=self.request.user)
 
     @action(detail=True, methods=['post'], permission_classes=[IsLibrarian])
     def mark_returned(self, request, pk=None):
+        # Librarian marks book as returned
         borrow = self.get_object()
 
         if borrow.return_date:
@@ -171,6 +182,12 @@ class BorrowViewSet(viewsets.ModelViewSet):
 
         return Response({"message": "Book marked as returned."}, status=200)
 
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def my_borrows(self, request):
+        # Reader can view their borrow history
+        borrows = Borrow.objects.filter(user=request.user).order_by('-borrow_date')
+        serializer = BorrowSerializer(borrows, many=True)
+        return Response(serializer.data)
 
 class ReserveViewSet(viewsets.ModelViewSet):
     queryset = Reserve.objects.all()
@@ -178,18 +195,20 @@ class ReserveViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
+        # Librarians see all reservations; readers see only their own
         if self.request.user.role == 'Librarian':
             return Reserve.objects.all()
         return Reserve.objects.filter(user=self.request.user)
     
     @action(detail=True, methods=['post'], permission_classes=[IsLibrarian])
     def fulfill(self, request, pk=None):
+        # Librarian fulfills a pending reservation by assigning an available book
         reservation = self.get_object()
 
         if reservation.status != 'Pending':
             return Response({'message': 'Reservation already processed.'}, status=400)
 
-        # Try to find an available book matching the reserved ISBN
+        # Find an available book with the same ISBN
         try:
             book = Book.objects.filter(isbn=reservation.isbn, status='Available').first()
             if not book:
@@ -197,15 +216,14 @@ class ReserveViewSet(viewsets.ModelViewSet):
         except Book.DoesNotExist:
             return Response({'message': 'No such book found.'}, status=404)
 
-        # Update reservation status
+        # Update reservation and book status
         reservation.status = 'Fulfilled'
         reservation.save()
 
-        # Update book status
         book.status = 'Borrowed'
         book.save()
 
-        # Create borrow record
+        # Create borrow record for the user
         borrow = Borrow.objects.create(
             user=reservation.user,
             book=book,
@@ -220,6 +238,7 @@ class ReserveViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsLibrarian])
     def cancel(self, request, pk=None):
+        # Librarian cancels a pending reservation
         reservation = self.get_object()
         if reservation.status != 'Pending':
             return Response({'message': 'Only pending reservations can be canceled.'}, status=400)
@@ -228,10 +247,21 @@ class ReserveViewSet(viewsets.ModelViewSet):
         reservation.save()
 
         return Response({'message': 'Reservation canceled.'})
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def my_reservations(self, request):
+        # Reader views their own reservations
+        reservations = Reserve.objects.filter(user=request.user).order_by('-reserve_date')
+        serializer = ReserveSerializer(reservations, many=True)
+        return Response(serializer.data)
     
     def perform_create(self, serializer):
+        # Set current user as the creator of the reservation
         serializer.save(user=self.request.user)
 
+# -------------------------------
+# Review Management
+# -------------------------------
 
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
@@ -239,6 +269,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
+        # Optional filtering by ISBN
         queryset = Review.objects.all()
         isbn = self.request.query_params.get('isbn', None)
 
@@ -246,22 +277,36 @@ class ReviewViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(isbn=isbn)
 
         return queryset
-# -------------------------------
-# Custom Librarian API View
-# -------------------------------
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def my_reviews(self, request):
+        # Reader views their own reviews
+        reviews = Review.objects.filter(user=request.user).order_by('-review_date')
+        serializer = ReviewSerializer(reviews, many=True)
+        return Response(serializer.data)
+
+    
+    
+# -------------------------------------
+# Overdue Summary(Custom for Librarian)
+# -------------------------------------
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def overdue_users_summary(request):
+    # Only librarians can access this summary
     if request.user.role != 'Librarian':
         return Response({"detail": "Only librarians can access this."}, status=403)
 
     today = timezone.now().date()
+
+    # Aggregate borrow records where return_date is null and due_date is past
     overdue_qs = Borrow.objects.filter(
         return_date__isnull=True,
         due_date__lt=today
     ).values('user__email').annotate(overdue_count=Count('borrow_id'))
 
+    # Format response as a list of users and their overdue counts
     results = [
         {
             "user_email": entry['user__email'],

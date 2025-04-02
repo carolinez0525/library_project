@@ -97,7 +97,7 @@ class Reserve(models.Model):
     reserve_id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     isbn = models.CharField(max_length=50)
-    reserve_date = models.DateField()
+    reserve_date = models.DateField(auto_now_add=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES)
 
 class Review(models.Model):
@@ -106,7 +106,7 @@ class Review(models.Model):
     isbn = models.CharField(max_length=50)
     rating = models.IntegerField()
     comment = models.TextField()
-    review_date = models.DateField()
+    review_date = models.DateField(auto_now_add=True)
 
     def clean(self):
         if not 1 <= self.rating <= 5:
