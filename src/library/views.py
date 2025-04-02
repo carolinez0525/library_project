@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -162,7 +162,16 @@ class BorrowViewSet(viewsets.ModelViewSet):
         return qs
     
     def perform_create(self, serializer):
-        # Automatically assign current user to borrow record
+        book = serializer.validated_data['book']
+
+        if book.status == "Borrowed":
+            raise serializers.ValidationError({"book": "This book is already borrowed."})
+
+        # Mark book as borrowed
+        book.status = "Borrowed"
+        book.save()
+
+        # Create the borrow record
         serializer.save(user=self.request.user)
 
     @action(detail=True, methods=['post'], permission_classes=[IsLibrarian])
