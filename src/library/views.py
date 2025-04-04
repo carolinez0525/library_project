@@ -3,8 +3,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate
 from django.utils import timezone
 from django.db.models import Q, Count
 from datetime import timedelta
@@ -30,8 +31,13 @@ class RegisterView(APIView):
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
+            refresh = RefreshToken.for_user(user)
             return Response({
                 "user": UserSerializer(user).data,
+                "tokens": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                }
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -46,10 +52,14 @@ class LoginView(APIView):
         user = authenticate(request, username=email, password=password)
 
         if user is not None:
-            login(request, user)
+            refresh = RefreshToken.for_user(user)
             return Response({
                 "message": "Login successful",
                 "user": UserSerializer(user).data,
+                "tokens": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                }
             }, status=status.HTTP_200_OK)
         return Response({"error": "Invalid email or password"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -75,7 +85,7 @@ class ReaderViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
 class LibrarianViewSet(viewsets.ModelViewSet):
-    queryset = Librarian.objects.all()
+    queryset = Librarian.objects.select_related('user').all()
     serializer_class = LibrarianSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -174,7 +184,7 @@ class BorrowViewSet(viewsets.ModelViewSet):
         # Create the borrow record
         serializer.save(user=self.request.user)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsLibrarian])
+    @action(detail=True, methods=['post'])
     def mark_returned(self, request, pk=None):
         # Librarian marks book as returned
         borrow = self.get_object()
