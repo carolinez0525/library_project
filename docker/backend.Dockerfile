@@ -37,6 +37,7 @@ RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 # Copy and install Python packages
 COPY requirements.txt /
 RUN pip install --no-cache-dir -r /requirements.txt
+COPY .env /
 
 # Copy project files
 COPY src /backend/src
